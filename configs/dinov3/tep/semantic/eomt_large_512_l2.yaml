@@ -1,0 +1,66 @@
+# EoMT + SurgeNetDINO (DINOv3 ViT-L) - Last 2 blocks + decoder
+# backbone 마지막 2블록 + EoMT head만 학습
+
+trainer:
+  max_epochs: 100
+  logger:
+    class_path: lightning.pytorch.loggers.CSVLogger
+    init_args:
+      save_dir: logs
+      name: tep_dinov3_vitl_last2
+  callbacks:
+    - class_path: training.plot_callback.TrainingCurvePlotCallback
+      init_args:
+        save_dir: logs/tep_dinov3_vitl_last2/curves
+    - class_path: lightning.pytorch.callbacks.EarlyStopping
+      init_args:
+        monitor: metrics/val_iou_all
+        patience: 15
+        mode: max
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        monitor: metrics/val_iou_all
+        mode: max
+        save_top_k: 1
+        filename: best
+
+model:
+  class_path: training.mask_classification_semantic.MaskClassificationSemantic
+  init_args:
+    lr: 1e-5
+    lr_mult: 0.1
+    llrd: 1.0
+    llrd_l2_enabled: False
+    weight_decay: 0.05
+    warmup_steps: [100, 200]
+    attn_mask_annealing_enabled: True
+    attn_mask_annealing_start_steps: [0, 500, 1000, 1500]
+    attn_mask_annealing_end_steps: [500, 1000, 1500, 2000]
+    ignore_idx: 255
+    delta_weights: False
+    load_ckpt_class_head: False
+    ckpt_path: weights/DINOv3_ViTl16_size336_SurgeNetXL_EoMT.pth
+    freeze_strategy: last2
+    network:
+      class_path: models.eomt.EoMT
+      init_args:
+        num_q: 50
+        encoder:
+          class_path: models.vit.ViT
+          init_args:
+            backbone_name: facebook/dinov3-vitl16-pretrain-lvd1689m
+            patch_size: 16
+
+data:
+  class_path: datasets.tep_semantic.TEPSemantic
+  init_args:
+    path: ./TEP_dataset/ro
+    split_train: train
+    split_tune: tune
+    split_val: int_val
+    img_size: [512, 512]
+    num_classes: 5
+    batch_size: 6
+    num_workers: 4
+    color_jitter_enabled: True
+    scale_range: [0.5, 2.0]
